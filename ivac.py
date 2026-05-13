@@ -5,6 +5,8 @@ import re
 import datetime
 from groq import Groq
 from ddgs import DDGS 
+import subprocess
+from tool_registry import Tool_Registry
 
 class Tool_Box:
     @staticmethod
@@ -32,10 +34,49 @@ class Tool_Box:
         except Exception as e:
             return f"Search engine error: {e}"
 
+    @staticmethod
+    def execute_command(command: str):
+        try:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+            return "STDOUT: " + str(result.stdout) + "\nSTDERR: " + str(result.stderr)
+        except Exception as e:
+            return "Execution error: " + str(e)
+
+    @staticmethod
+    def read_file(location: str):
+        try:
+            with open(location, "r") as file:
+                content = file.read()
+                return content
+        except Exception as e:
+            return "file read error: " + str(e)
+
+    @staticmethod
+    def write_file(location: str, content: str):
+        try:
+            with open(location, "w") as file:
+                file.write(content)
+                return "writing complete"
+        except Exception as e:
+            return "writing error: " + str(e)
+
+    @staticmethod
+    def append_file(location: str, content: str):
+        try:
+            with open(location, "a") as file:
+                file.write(content)
+                return "appending complete"
+        except Exception as e:
+            return "appending error: " + str(e)
+
+
+
 class IVAC:
-    def __init__(self, api_key, model_name):
+    def __init__(self, api_key, model_list):
         self.client = Groq(api_key=api_key)
-        self.model = model_name
+        self.model_list = model_list
+        self.current_model = None
+        self.select_model()
         self.history = [
             {
                 "role": "system", 
@@ -47,46 +88,44 @@ class IVAC:
                 )
             }
         ]
-        self.tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather",
-                    "description": "Get real-time weather for a city.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"location": {"type": "string"}},
-                        "required": ["location"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "description": "Search the web for info, news, or long-term seasonal forecasts.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"query": {"type": "string"}},
-                        "required": ["query"]
-                    }
-                }
-            }
-        ]
+        self.registry = Tool_Registry()
+        self.registry.find_tools()
+        self.tools = self.registry.tool_metadata
+
+
+    def select_model(self):
+        if self.current_model is None:
+            self.current_model = self.model_list[0]
+        else:
+            try:
+                current_model_index = self.model_list.index(self.current_model)
+                next_model_index = (current_model_index + 1) % len(self.model_list)
+                self.current_model = self.model_list[next_model_index]
+            except ValueError:
+                self.current_model = self.model_list[0]
+        print("[!]System model: " + str(self.current_model))
 
     def send_request(self):
         try:
             return self.client.chat.completions.create(
-                model=self.model,
+                model=self.current_model,
                 messages=self.history,
                 tools=self.tools,
                 tool_choice="auto",
                 temperature=0
             )
         except Exception as e:
+            error_str = str(e).lower()
+            
             if "tool_use_failed" in str(e):
                 repaired = self.repair_hallucination(str(e))
-                if repaired: return repaired
+                if repaired: 
+                    return repaired
+            
+            if "rate_limit_reached" in error_str or "429" in error_str:
+                print("[!] Rate limit reached on " + self.model + ", switching to next model")
+                self.select_model()
+
             raise e
 
     def repair_hallucination(self, error_str):
@@ -134,13 +173,10 @@ class IVAC:
                 name = tool.function.name
                 args = json.loads(tool.function.arguments)
                 print(f"[*] IVAC Acting: {name}({args})")
-
-                if name == "get_weather":
-                    result = Tool_Box.get_weather(args.get("location", ""))
-                elif name == "web_search":
-                    result = Tool_Box.web_search(args.get("query", ""))
+                if name in self.registry.tool_map:
+                    result = self.registry.tool_map[name](**args)
                 else:
-                    result = "Tool not found."
+                    result = "Tool not found"
 
                 self.history.append({
                     "tool_call_id": tool.id,
@@ -149,10 +185,14 @@ class IVAC:
                     "content": result
                 })
 
+
 if __name__ == "__main__":
-    KEY = "<<YOUR API KEY>>" 
-    agent = IVAC(KEY, "llama-3.3-70b-versatile")
-    
+    KEY = "<YOUR_API_KEY>" #PLACE_HOLDER
+    model_list = [
+        "<A_LIST_OF_YOUR_PREFERRED_MODEL_NAMES_IN_ORDER_OF_PREFERENCE>" #PLACE_HOLDER
+        ]
+    agent = IVAC(KEY, model_list)
+
     print("--- IVAC Terminal Activated ---")
     while True:
         try:
