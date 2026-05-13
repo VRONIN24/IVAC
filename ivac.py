@@ -187,9 +187,9 @@ class IVAC:
 
 
 if __name__ == "__main__":
-    KEY = "<YOUR_API_KEY>" 
+    KEY = "<YOUR_API_KEY>" #PLACE_HOLDER
     model_list = [
-        "<A_LIST_OF_YOUR_PREFERRED_MODEL_NAMES_IN_ORDER_OF_PREFERENCE>"
+        "<A_LIST_OF_YOUR_PREFERRED_MODEL_NAMES_IN_ORDER_OF_PREFERENCE>" #PLACE_HOLDER
         ]
     agent = IVAC(KEY, model_list)
 
