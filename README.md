@@ -38,7 +38,7 @@ Ensure you have **Python 3.8+** installed. You will also need a Groq API Key.
 Run the following command to install the required libraries:
 
 ```bash
-pip install requests groq duckduckgo_search
+pip install requests groq ddgs
 
 ```
 
