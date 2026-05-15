@@ -122,11 +122,14 @@ class IVAC:
                 if repaired: 
                     return repaired
             
-            if "rate_limit_reached" in error_str or "429" in error_str:
-                print("[!] Rate limit reached on " + self.model + ", switching to next model")
+            if "rate_limit_reached" in error_str or "429" in error_str or "rate_limit_exceeded":
+                print("[!] Rate limit reached on " + self.current_model + ", switching to next model")
                 self.select_model()
+                return self.send_request()
 
-            raise e
+            print("ERROR STRING: " + str(error_str))
+
+            #raise e
 
     def repair_hallucination(self, error_str):
         match = re.search(r'failed_generation\': \'(.*?)\'}', error_str)
@@ -190,7 +193,7 @@ if __name__ == "__main__":
     KEY = "<YOUR_API_KEY>" #PLACE_HOLDER
     model_list = [
         "<A_LIST_OF_YOUR_PREFERRED_MODEL_NAMES_IN_ORDER_OF_PREFERENCE>" #PLACE_HOLDER
-        ]
+    ]
     agent = IVAC(KEY, model_list)
 
     print("--- IVAC Terminal Activated ---")
